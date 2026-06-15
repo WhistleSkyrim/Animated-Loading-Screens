@@ -1,0 +1,69 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 26,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "release-x64",
+      "displayName": "Release x64 plugin",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build-release-v143-x64",
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/vcpkg-triplets",
+        "VCPKG_TARGET_TRIPLET": "x64-windows-v143",
+        "VCPKG_HOST_TRIPLET": "x64-windows-v143",
+        "VCPKG_INSTALLED_DIR": "$env{VCPKG_ROOT}/installed-animated-loading-screens/release-v143-x64-static-md",
+        "VCPKG_MANIFEST_FEATURES": "ffmpeg",
+        "CMAKE_BUILD_TYPE": "Release",
+        "ALS_BUILD_PLUGIN": "ON",
+        "ALS_BUILD_TESTS": "ON",
+        "ALS_ENABLE_FFMPEG": "ON"
+      }
+    },
+    {
+      "name": "tests-release-x64",
+      "displayName": "Release x64 unit tests",
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/build-tests-release-v143-x64",
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/vcpkg-triplets",
+        "VCPKG_TARGET_TRIPLET": "x64-windows-v143",
+        "VCPKG_HOST_TRIPLET": "x64-windows-v143",
+        "VCPKG_INSTALLED_DIR": "$env{VCPKG_ROOT}/installed-animated-loading-screens/tests-release-v143-x64-static-md",
+        "CMAKE_BUILD_TYPE": "Release",
+        "ALS_BUILD_PLUGIN": "OFF",
+        "ALS_BUILD_TESTS": "ON",
+        "ALS_ENABLE_FFMPEG": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "release-x64",
+      "configurePreset": "release-x64",
+      "configuration": "Release"
+    },
+    {
+      "name": "tests-release-x64",
+      "configurePreset": "tests-release-x64",
+      "configuration": "Release"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "tests-release-x64",
+      "configurePreset": "tests-release-x64",
+      "configuration": "Release",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

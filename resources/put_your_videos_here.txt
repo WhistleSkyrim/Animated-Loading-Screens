@@ -1,0 +1,6 @@
+Drop MP4, WebM, MKV, MOV, AVI, GIF, or APNG files in this folder.
+
+The actual formats and codecs that work depend on the FFmpeg DLLs installed in:
+
+Data\SKSE\Plugins\AnimatedLoadingScreens\FFmpeg
+

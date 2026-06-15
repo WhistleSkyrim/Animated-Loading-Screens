@@ -1,0 +1,12 @@
+{
+  "registries": [
+    {
+      "kind": "git",
+      "baseline": "9f4386dc815ee0b239e76160d6ca4369d1978798",
+      "repository": "https://github.com/Monitor221hz/modding-vcpkg-ports",
+      "packages": [
+        "commonlibsse-ng-fork"
+      ]
+    }
+  ]
+}

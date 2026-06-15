@@ -1,0 +1,7 @@
+# path | weight | display duration override in seconds, optional
+# Paths are relative to the LoadingScreens folder. Absolute paths are rejected for safety.
+#
+# intro.mp4 | 10
+# dark_forest.webm | 5
+# logo_loop.mp4 | 20 | 8.0
+

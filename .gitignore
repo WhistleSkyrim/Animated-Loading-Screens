@@ -1,0 +1,70 @@
+# Build directories and generated packages
+/build/
+/build-*/
+/out/
+/Output/
+/package/
+/_install/
+
+# CMake and Visual Studio generated files
+CMakeCache.txt
+CMakeFiles/
+CMakeUserPresets.json
+cmake_install.cmake
+install_manifest.txt
+Testing/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.dir/
+.vs/
+
+# vcpkg generated dependency trees
+vcpkg_installed/
+installed-animated-loading-screens/
+vcpkg-manifest-install.log
+vcpkg-manifest-root/
+
+# Compiled binaries and debug symbols
+*.dll
+*.exe
+*.lib
+*.obj
+*.pdb
+*.ilk
+*.exp
+*.tlog
+*.recipe
+*.lastbuildstate
+
+# Local user/editor files
+*.user
+*.suo
+*.log
+*.tmp
+*.bak
+*.zip
+*.7z
+*.rar
+.idea/
+.vscode/
+.cache/
+
+# AI assistant and agent-local files
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+.codex/
+.cursor/
+.windsurf/
+.playwright-mcp/
+.claude/
+.continue/
+.aider*
+.cursorrules
+.rules/
+rules/
+skills/
+SKILL.md
+.github/copilot-instructions.md
