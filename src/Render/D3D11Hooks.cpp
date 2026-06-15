@@ -64,6 +64,7 @@ namespace
     std::atomic<IDXGISwapChain*> g_targetSwapChain{ nullptr };
     std::atomic_bool g_overlayWasActive{ false };
     std::atomic_bool g_skipNextOverlayDraw{ true };
+    std::atomic_bool g_postDisplayOverlaySubmitted{ false };
     std::atomic_uint g_activeDetours{ 0 };
     std::atomic_uint g_presentHits{ 0 };
     std::atomic_uint g_present1Hits{ 0 };
@@ -76,6 +77,7 @@ namespace
     std::atomic_uint g_postDisplayHits{ 0 };
     std::atomic_uint g_postDisplayNoRenderDataLogs{ 0 };
     std::atomic_uint g_postDisplayRenderFailureLogs{ 0 };
+    std::atomic_uint g_presentSkippedAfterPostDisplayLogs{ 0 };
     std::atomic_bool g_loggedFirstPostDisplayRender{ false };
     std::atomic_bool g_loggedFirstSuccessfulRender{ false };
     std::atomic_bool g_uninstalling{ false };
@@ -191,76 +193,83 @@ namespace
             ~Scope() { g_insideLoadingMenuPostDisplay = false; }
         } scope;
 
-        if (g_originalLoadingMenuPostDisplay) {
-            g_originalLoadingMenuPostDisplay(menu);
-        }
-
+        bool renderedBeforeOriginal = false;
         try {
-            auto* controller = g_controller.load(std::memory_order_acquire);
-            if (!controller || !controller->IsOverlayActive()) {
-                return;
-            }
-
-            const auto renderData = controller->TryBuildRenderFrame();
-            const auto hitIndex = g_postDisplayHits.fetch_add(1, std::memory_order_relaxed);
-            if (hitIndex < 40 || (hitIndex % 120) == 0) {
-                ALS::Log::diagnostic(
-                    "loading_menu_postdisplay_render_data index={} menu={} should_render={} draw_background={} current_frame={} current_alpha={} next_frame={} next_alpha={} opacity={}",
-                    hitIndex,
-                    static_cast<const void*>(menu),
-                    renderData.shouldRender,
-                    renderData.drawBackground,
-                    static_cast<bool>(renderData.current.frame),
-                    renderData.current.alpha,
-                    static_cast<bool>(renderData.next.frame),
-                    renderData.next.alpha,
-                    renderData.opacity);
-            }
-            if (!renderData.shouldRender) {
-                if (ShouldLog(g_postDisplayNoRenderDataLogs, 20)) {
-                    ALS::Log::diagnostic("loading_menu_postdisplay_no_render_data index={}", hitIndex);
+            const auto renderOverlayBeforeOriginal = [&]() -> bool {
+                auto* controller = g_controller.load(std::memory_order_acquire);
+                if (!controller || !controller->IsOverlayActive()) {
+                    return false;
                 }
-                return;
-            }
 
-            auto* swapChain = g_targetSwapChain.load(std::memory_order_acquire);
-            if (!swapChain) {
-                swapChain = GetSkyrimSwapChain();
-            }
-            if (!swapChain) {
-                if (ShouldLog(g_postDisplayRenderFailureLogs, 10)) {
-                    ALS::Log::diagnostic("loading_menu_postdisplay_render_result index={} success=false reason=no_swapchain", hitIndex);
-                }
-                return;
-            }
-
-            ComPtr<ID3D11Device> device;
-            if (FAILED(swapChain->GetDevice(__uuidof(ID3D11Device), reinterpret_cast<void**>(device.GetAddressOf()))) || !device) {
-                if (ShouldLog(g_postDisplayRenderFailureLogs, 10)) {
-                    ALS::Log::diagnostic("loading_menu_postdisplay_render_result index={} success=false reason=no_device", hitIndex);
-                }
-                return;
-            }
-
-            ComPtr<ID3D11DeviceContext> context;
-            device->GetImmediateContext(context.GetAddressOf());
-            if (!context) {
-                if (ShouldLog(g_postDisplayRenderFailureLogs, 10)) {
-                    ALS::Log::diagnostic("loading_menu_postdisplay_render_result index={} success=false reason=no_context", hitIndex);
-                }
-                return;
-            }
-
-            std::scoped_lock renderLock(g_rendererMutex);
-            if (g_renderer.RenderCurrentTarget(context.Get(), renderData)) {
+                const auto renderData = controller->TryBuildRenderFrame();
+                const auto hitIndex = g_postDisplayHits.fetch_add(1, std::memory_order_relaxed);
                 if (hitIndex < 40 || (hitIndex % 120) == 0) {
-                    ALS::Log::diagnostic("loading_menu_postdisplay_render_result index={} success=true", hitIndex);
+                    ALS::Log::diagnostic(
+                        "loading_menu_postdisplay_render_data index={} menu={} should_render={} draw_background={} current_frame={} current_alpha={} next_frame={} next_alpha={} opacity={}",
+                        hitIndex,
+                        static_cast<const void*>(menu),
+                        renderData.shouldRender,
+                        renderData.drawBackground,
+                        static_cast<bool>(renderData.current.frame),
+                        renderData.current.alpha,
+                        static_cast<bool>(renderData.next.frame),
+                        renderData.next.alpha,
+                        renderData.opacity);
                 }
-                if (!g_loggedFirstPostDisplayRender.exchange(true, std::memory_order_acq_rel)) {
-                    ALS::Log::info("Overlay render succeeded from LoadingMenu::PostDisplay.");
+                if (!renderData.shouldRender) {
+                    if (ShouldLog(g_postDisplayNoRenderDataLogs, 20)) {
+                        ALS::Log::diagnostic("loading_menu_postdisplay_no_render_data index={}", hitIndex);
+                    }
+                    return false;
                 }
-            } else if (ShouldLog(g_postDisplayRenderFailureLogs, 10)) {
-                ALS::Log::diagnostic("loading_menu_postdisplay_render_result index={} success=false reason=renderer_returned_false", hitIndex);
+
+                auto* swapChain = g_targetSwapChain.load(std::memory_order_acquire);
+                if (!swapChain) {
+                    swapChain = GetSkyrimSwapChain();
+                }
+                if (!swapChain) {
+                    if (ShouldLog(g_postDisplayRenderFailureLogs, 10)) {
+                        ALS::Log::diagnostic("loading_menu_postdisplay_render_result index={} success=false reason=no_swapchain", hitIndex);
+                    }
+                    return false;
+                }
+
+                ComPtr<ID3D11Device> device;
+                if (FAILED(swapChain->GetDevice(__uuidof(ID3D11Device), reinterpret_cast<void**>(device.GetAddressOf()))) || !device) {
+                    if (ShouldLog(g_postDisplayRenderFailureLogs, 10)) {
+                        ALS::Log::diagnostic("loading_menu_postdisplay_render_result index={} success=false reason=no_device", hitIndex);
+                    }
+                    return false;
+                }
+
+                ComPtr<ID3D11DeviceContext> context;
+                device->GetImmediateContext(context.GetAddressOf());
+                if (!context) {
+                    if (ShouldLog(g_postDisplayRenderFailureLogs, 10)) {
+                        ALS::Log::diagnostic("loading_menu_postdisplay_render_result index={} success=false reason=no_context", hitIndex);
+                    }
+                    return false;
+                }
+
+                std::scoped_lock renderLock(g_rendererMutex);
+                if (g_renderer.RenderCurrentTarget(context.Get(), renderData)) {
+                    if (hitIndex < 40 || (hitIndex % 120) == 0) {
+                        ALS::Log::diagnostic("loading_menu_postdisplay_render_result index={} success=true phase=before_original", hitIndex);
+                    }
+                    if (!g_loggedFirstPostDisplayRender.exchange(true, std::memory_order_acq_rel)) {
+                        ALS::Log::info("Overlay render succeeded before LoadingMenu::PostDisplay.");
+                    }
+                    return true;
+                }
+                if (ShouldLog(g_postDisplayRenderFailureLogs, 10)) {
+                    ALS::Log::diagnostic("loading_menu_postdisplay_render_result index={} success=false reason=renderer_returned_false", hitIndex);
+                }
+                return false;
+            };
+
+            renderedBeforeOriginal = renderOverlayBeforeOriginal();
+            if (renderedBeforeOriginal) {
+                g_postDisplayOverlaySubmitted.store(true, std::memory_order_release);
             }
         } catch (const std::exception& e) {
             ALS::Log::error("Exception in LoadingMenu::PostDisplay hook: {}", e.what());
@@ -268,6 +277,13 @@ namespace
         } catch (...) {
             ALS::Log::error("Unknown exception in LoadingMenu::PostDisplay hook.");
             ALS::Log::diagnostic("loading_menu_postdisplay_exception what=<unknown>");
+        }
+        if (!renderedBeforeOriginal) {
+            g_postDisplayOverlaySubmitted.store(false, std::memory_order_release);
+        }
+
+        if (g_originalLoadingMenuPostDisplay) {
+            g_originalLoadingMenuPostDisplay(menu);
         }
     }
 
@@ -323,13 +339,22 @@ namespace
                 }
                 g_overlayWasActive.store(false, std::memory_order_release);
                 g_skipNextOverlayDraw.store(true, std::memory_order_release);
+                g_postDisplayOverlaySubmitted.store(false, std::memory_order_release);
                 return false;
             }
             if (!g_overlayWasActive.exchange(true, std::memory_order_acq_rel)) {
                 g_skipNextOverlayDraw.store(true, std::memory_order_release);
+                g_postDisplayOverlaySubmitted.store(false, std::memory_order_release);
             }
 
             if ((flags & DXGI_PRESENT_TEST) == 0) {
+                if (g_postDisplayOverlaySubmitted.exchange(false, std::memory_order_acq_rel)) {
+                    if (ShouldLog(g_presentSkippedAfterPostDisplayLogs, 20)) {
+                        ALS::Log::diagnostic("present_hook_skip_after_postdisplay flags=0x{:X}", static_cast<unsigned>(flags));
+                    }
+                    return false;
+                }
+
                 const auto renderData = controller->TryBuildRenderFrame();
                 static std::atomic_uint renderDataDiagnostics{ 0 };
                 const auto diagnosticIndex = renderDataDiagnostics.fetch_add(1, std::memory_order_relaxed);
@@ -673,6 +698,7 @@ namespace ALS::D3D11Hooks
         EnableOptionalHook(g_resizeBuffers1Address, reinterpret_cast<const void*>(g_originalResizeBuffers1), "IDXGISwapChain3::ResizeBuffers1");
 
         g_uninstalling.store(false, std::memory_order_release);
+        g_postDisplayOverlaySubmitted.store(false, std::memory_order_release);
         g_targetSwapChain.store(swapChain, std::memory_order_release);
         g_installed = true;
         Log::info("D3D11 Present hook installed.");
@@ -724,6 +750,7 @@ namespace ALS::D3D11Hooks
         g_targetSwapChain.store(nullptr, std::memory_order_release);
         g_overlayWasActive.store(false, std::memory_order_release);
         g_skipNextOverlayDraw.store(true, std::memory_order_release);
+        g_postDisplayOverlaySubmitted.store(false, std::memory_order_release);
         g_presentHits.store(0, std::memory_order_release);
         g_present1Hits.store(0, std::memory_order_release);
         g_targetMismatchLogs.store(0, std::memory_order_release);
@@ -735,6 +762,7 @@ namespace ALS::D3D11Hooks
         g_postDisplayHits.store(0, std::memory_order_release);
         g_postDisplayNoRenderDataLogs.store(0, std::memory_order_release);
         g_postDisplayRenderFailureLogs.store(0, std::memory_order_release);
+        g_presentSkippedAfterPostDisplayLogs.store(0, std::memory_order_release);
         g_loggedFirstPostDisplayRender.store(false, std::memory_order_release);
         g_loggedFirstSuccessfulRender.store(false, std::memory_order_release);
         g_originalPresent = nullptr;

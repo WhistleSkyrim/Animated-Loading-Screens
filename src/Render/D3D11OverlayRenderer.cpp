@@ -40,7 +40,6 @@ namespace
     constexpr std::size_t kMaxQuadCount = 4;
     constexpr std::size_t kVerticesPerQuad = 4;
     constexpr std::size_t kMaxVertexCount = kMaxQuadCount * kVerticesPerQuad;
-    constexpr float kLoadingTextPreserveTopRatio = 0.72F;
 
     std::atomic_bool g_loggedPipelineInit{ false };
     std::atomic_bool g_loggedBackBuffer{ false };
@@ -51,8 +50,6 @@ namespace
     std::atomic_uint g_vertexMapFailureLogs{ 0 };
     std::atomic_uint g_backBufferSampleLogs{ 0 };
     std::atomic_uint g_frameSampleLogs{ 0 };
-    std::atomic_uint g_textPreserveLogs{ 0 };
-    std::atomic_uint g_textPreserveFailureLogs{ 0 };
     std::atomic_uint g_currentTargetLogs{ 0 };
     std::atomic_uint g_currentTargetFailureLogs{ 0 };
 
@@ -173,19 +170,6 @@ SamplerState overlaySampler : register(s0);
 float4 main(float4 position : SV_Position, float2 uv : TEXCOORD0, float4 color : COLOR0) : SV_Target
 {
     return overlayTexture.Sample(overlaySampler, uv) * color;
-}
-)";
-
-    constexpr char kTextPreservePixelShader[] = R"(
-Texture2D overlayTexture : register(t0);
-SamplerState overlaySampler : register(s0);
-
-float4 main(float4 position : SV_Position, float2 uv : TEXCOORD0, float4 color : COLOR0) : SV_Target
-{
-    float4 src = overlayTexture.Sample(overlaySampler, uv);
-    float luma = dot(src.rgb, float3(0.2126, 0.7152, 0.0722));
-    float alpha = saturate((luma - 0.68) / 0.18) * color.a;
-    return float4(src.rgb * color.rgb, alpha);
 }
 )";
 
@@ -581,7 +565,6 @@ namespace ALS
 
         const auto viewportWidth = static_cast<float>(backBufferWidth_);
         const auto viewportHeight = static_cast<float>(backBufferHeight_);
-        const auto preserveLoadingText = data.drawBackground && CaptureBackBufferForText(swapChain);
 
         const D3D11StateGuard stateGuard(context_.Get());
 
@@ -655,28 +638,12 @@ namespace ALS
 
         context_->PSSetShader(pixelShader_.Get(), nullptr, 0);
         const auto overlayQuads = DrawTexturedQuads(commands.data(), commandCount, viewportWidth, viewportHeight);
-        std::size_t preservedTextQuads = 0;
-        if (preserveLoadingText && preservedBackBuffer_.srv) {
-            const auto preserveTop = viewportHeight * kLoadingTextPreserveTopRatio;
-            const auto preserveHeight = viewportHeight - preserveTop;
-            const QuadCommand preserveText{
-                RectF{ 0.0F, preserveTop, viewportWidth, preserveHeight },
-                RectF{ 0.0F, preserveTop / viewportHeight, 1.0F, preserveHeight / viewportHeight },
-                preservedBackBuffer_.srv.Get(),
-                Color{ 1.0F, 1.0F, 1.0F, 1.0F },
-                1.0F
-            };
-            context_->PSSetShader(textPreservePixelShader_.Get(), nullptr, 0);
-            preservedTextQuads = DrawTexturedQuads(&preserveText, 1, viewportWidth, viewportHeight);
-        }
-
-        const auto drawnQuads = overlayQuads + preservedTextQuads;
+        const auto drawnQuads = overlayQuads;
         if (drawnQuads == 0) {
             if (ShouldLog(g_noDrawCommandLogs, 10)) {
                 Log::warn(
-                    "Overlay render produced no draw commands. requestedCommands={}, preserveText={}, currentFrame={}, nextFrame={}, drawBackground={}.",
+                    "Overlay render produced no draw commands. requestedCommands={}, currentFrame={}, nextFrame={}, drawBackground={}.",
                     commandCount,
-                    preserveLoadingText,
                     static_cast<bool>(data.current.frame),
                     static_cast<bool>(data.next.frame),
                     data.drawBackground);
@@ -685,15 +652,13 @@ namespace ALS
         }
         if (ShouldLog(g_backBufferSampleLogs, 8)) {
             ALS::Log::diagnostic(
-                "overlay_render_drawn quads={} overlay_quads={} text_quads={} requested_commands={} viewport={}x{} draw_background={} preserve_text={} current_frame={} current_alpha={} next_frame={} next_alpha={} opacity={}",
+                "overlay_render_drawn quads={} overlay_quads={} requested_commands={} viewport={}x{} draw_background={} current_frame={} current_alpha={} next_frame={} next_alpha={} opacity={}",
                 drawnQuads,
                 overlayQuads,
-                preservedTextQuads,
                 commandCount,
                 backBufferWidth_,
                 backBufferHeight_,
                 data.drawBackground,
-                preserveLoadingText,
                 static_cast<bool>(data.current.frame),
                 currentAlpha,
                 static_cast<bool>(data.next.frame),
@@ -777,11 +742,6 @@ namespace ALS
             return false;
         }
 
-        const auto preserveLoadingText =
-            data.drawBackground &&
-            targetDesc.SampleDesc.Count == 1 &&
-            CaptureRenderTargetForText(activeResource.Get(), targetDesc);
-
         const D3D11StateGuard stateGuard(context_.Get());
 
         context_->RSSetViewports(1, &viewport);
@@ -850,28 +810,12 @@ namespace ALS
 
         context_->PSSetShader(pixelShader_.Get(), nullptr, 0);
         const auto overlayQuads = DrawTexturedQuads(commands.data(), commandCount, viewportWidth, viewportHeight);
-        std::size_t preservedTextQuads = 0;
-        if (preserveLoadingText && preservedBackBuffer_.srv) {
-            const auto preserveTop = viewportHeight * kLoadingTextPreserveTopRatio;
-            const auto preserveHeight = viewportHeight - preserveTop;
-            const QuadCommand preserveText{
-                RectF{ 0.0F, preserveTop, viewportWidth, preserveHeight },
-                RectF{ 0.0F, preserveTop / viewportHeight, 1.0F, preserveHeight / viewportHeight },
-                preservedBackBuffer_.srv.Get(),
-                Color{ 1.0F, 1.0F, 1.0F, 1.0F },
-                1.0F
-            };
-            context_->PSSetShader(textPreservePixelShader_.Get(), nullptr, 0);
-            preservedTextQuads = DrawTexturedQuads(&preserveText, 1, viewportWidth, viewportHeight);
-        }
-
-        const auto drawnQuads = overlayQuads + preservedTextQuads;
+        const auto drawnQuads = overlayQuads;
         if (drawnQuads == 0) {
             if (ShouldLog(g_noDrawCommandLogs, 10)) {
                 Log::warn(
-                    "Current target overlay render produced no draw commands. requestedCommands={}, preserveText={}, currentFrame={}, nextFrame={}, drawBackground={}.",
+                    "Current target overlay render produced no draw commands. requestedCommands={}, currentFrame={}, nextFrame={}, drawBackground={}.",
                     commandCount,
-                    preserveLoadingText,
                     static_cast<bool>(data.current.frame),
                     static_cast<bool>(data.next.frame),
                     data.drawBackground);
@@ -881,10 +825,9 @@ namespace ALS
 
         if (ShouldLog(g_currentTargetLogs, 16)) {
             Log::diagnostic(
-                "overlay_render_current_target result=drawn quads={} overlay_quads={} text_quads={} requested_commands={} viewport={}x{} target={}x{} format={} draw_background={} preserve_text={} current_frame={} current_alpha={} next_frame={} next_alpha={} opacity={}",
+                "overlay_render_current_target result=drawn quads={} overlay_quads={} requested_commands={} viewport={}x{} target={}x{} format={} draw_background={} current_frame={} current_alpha={} next_frame={} next_alpha={} opacity={}",
                 drawnQuads,
                 overlayQuads,
-                preservedTextQuads,
                 commandCount,
                 viewportWidth,
                 viewportHeight,
@@ -892,7 +835,6 @@ namespace ALS
                 targetDesc.Height,
                 static_cast<unsigned>(targetDesc.Format),
                 data.drawBackground,
-                preserveLoadingText,
                 static_cast<bool>(data.current.frame),
                 currentAlpha,
                 static_cast<bool>(data.next.frame),
@@ -908,7 +850,6 @@ namespace ALS
     void D3D11OverlayRenderer::Invalidate()
     {
         renderTargetView_.Reset();
-        preservedBackBuffer_ = {};
         backBufferWidth_ = 0;
         backBufferHeight_ = 0;
     }
@@ -1054,7 +995,6 @@ namespace ALS
             context_ &&
             vertexShader_ &&
             pixelShader_ &&
-            textPreservePixelShader_ &&
             inputLayout_ &&
             vertexBuffer_ &&
             sampler_ &&
@@ -1068,10 +1008,8 @@ namespace ALS
     {
         ComPtr<ID3DBlob> vsBlob;
         ComPtr<ID3DBlob> psBlob;
-        ComPtr<ID3DBlob> textPsBlob;
         if (!CompileShader(kVertexShader, "main", "vs_4_0", vsBlob) ||
-            !CompileShader(kPixelShader, "main", "ps_4_0", psBlob) ||
-            !CompileShader(kTextPreservePixelShader, "main", "ps_4_0", textPsBlob)) {
+            !CompileShader(kPixelShader, "main", "ps_4_0", psBlob)) {
             return false;
         }
 
@@ -1081,14 +1019,6 @@ namespace ALS
         }
         if (FAILED(device_->CreatePixelShader(psBlob->GetBufferPointer(), psBlob->GetBufferSize(), nullptr, pixelShader_.GetAddressOf()))) {
             Log::error("Unable to create overlay pixel shader.");
-            return false;
-        }
-        if (FAILED(device_->CreatePixelShader(
-                textPsBlob->GetBufferPointer(),
-                textPsBlob->GetBufferSize(),
-                nullptr,
-                textPreservePixelShader_.GetAddressOf()))) {
-            Log::error("Unable to create loading text preservation pixel shader.");
             return false;
         }
 
@@ -1193,7 +1123,6 @@ namespace ALS
         renderTargetView_.Reset();
         vertexShader_.Reset();
         pixelShader_.Reset();
-        textPreservePixelShader_.Reset();
         inputLayout_.Reset();
         vertexBuffer_.Reset();
         sampler_.Reset();
@@ -1203,198 +1132,11 @@ namespace ALS
         currentTexture_ = {};
         nextTexture_ = {};
         whiteTexture_ = {};
-        preservedBackBuffer_ = {};
         backBufferWidth_ = 0;
         backBufferHeight_ = 0;
         swapChain_ = nullptr;
         context_.Reset();
         device_.Reset();
-    }
-
-    bool D3D11OverlayRenderer::CaptureBackBufferForText(IDXGISwapChain* swapChain)
-    {
-        if (!swapChain || !device_ || !context_) {
-            return false;
-        }
-
-        ComPtr<ID3D11Texture2D> backBuffer;
-        if (FAILED(swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(backBuffer.GetAddressOf())))) {
-            if (ShouldLog(g_textPreserveFailureLogs, 8)) {
-                Log::warn("Unable to capture LoadingMenu text: back buffer is unavailable.");
-                Log::diagnostic("loading_text_preserve_capture result=failed reason=get_buffer");
-            }
-            return false;
-        }
-
-        D3D11_TEXTURE2D_DESC desc{};
-        backBuffer->GetDesc(&desc);
-        if (desc.Width == 0 || desc.Height == 0 || desc.Format == DXGI_FORMAT_UNKNOWN) {
-            return false;
-        }
-        if (desc.SampleDesc.Count != 1) {
-            if (ShouldLog(g_textPreserveFailureLogs, 8)) {
-                Log::diagnostic(
-                    "loading_text_preserve_capture result=skipped reason=multisampled sample_count={} format={}",
-                    desc.SampleDesc.Count,
-                    static_cast<unsigned>(desc.Format));
-            }
-            return false;
-        }
-
-        const auto needsTexture =
-            !preservedBackBuffer_.texture ||
-            !preservedBackBuffer_.srv ||
-            preservedBackBuffer_.width != desc.Width ||
-            preservedBackBuffer_.height != desc.Height ||
-            preservedBackBuffer_.format != desc.Format;
-        if (needsTexture) {
-            preservedBackBuffer_ = {};
-
-            D3D11_TEXTURE2D_DESC copyDesc{};
-            copyDesc.Width = desc.Width;
-            copyDesc.Height = desc.Height;
-            copyDesc.MipLevels = 1;
-            copyDesc.ArraySize = 1;
-            copyDesc.Format = desc.Format;
-            copyDesc.SampleDesc.Count = 1;
-            copyDesc.Usage = D3D11_USAGE_DEFAULT;
-            copyDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-
-            HRESULT hr = device_->CreateTexture2D(&copyDesc, nullptr, preservedBackBuffer_.texture.GetAddressOf());
-            if (FAILED(hr)) {
-                if (ShouldLog(g_textPreserveFailureLogs, 8)) {
-                    Log::warn(
-                        "Unable to create LoadingMenu text preservation texture. format={}, hr=0x{:08X}.",
-                        static_cast<unsigned>(desc.Format),
-                        static_cast<unsigned>(hr));
-                    Log::diagnostic(
-                        "loading_text_preserve_capture result=failed reason=create_texture format={} hr=0x{:08X}",
-                        static_cast<unsigned>(desc.Format),
-                        static_cast<unsigned>(hr));
-                }
-                return false;
-            }
-
-            hr = device_->CreateShaderResourceView(
-                preservedBackBuffer_.texture.Get(),
-                nullptr,
-                preservedBackBuffer_.srv.GetAddressOf());
-            if (FAILED(hr)) {
-                if (ShouldLog(g_textPreserveFailureLogs, 8)) {
-                    Log::warn(
-                        "Unable to create LoadingMenu text preservation SRV. format={}, hr=0x{:08X}.",
-                        static_cast<unsigned>(desc.Format),
-                        static_cast<unsigned>(hr));
-                    Log::diagnostic(
-                        "loading_text_preserve_capture result=failed reason=create_srv format={} hr=0x{:08X}",
-                        static_cast<unsigned>(desc.Format),
-                        static_cast<unsigned>(hr));
-                }
-                preservedBackBuffer_ = {};
-                return false;
-            }
-
-            preservedBackBuffer_.width = desc.Width;
-            preservedBackBuffer_.height = desc.Height;
-            preservedBackBuffer_.format = desc.Format;
-        }
-
-        context_->CopyResource(preservedBackBuffer_.texture.Get(), backBuffer.Get());
-        if (ShouldLog(g_textPreserveLogs, 12)) {
-            Log::diagnostic(
-                "loading_text_preserve_capture result=ok size={}x{} format={}",
-                desc.Width,
-                desc.Height,
-                static_cast<unsigned>(desc.Format));
-        }
-        return true;
-    }
-
-    bool D3D11OverlayRenderer::CaptureRenderTargetForText(ID3D11Resource* resource, const D3D11_TEXTURE2D_DESC& desc)
-    {
-        if (!resource || !device_ || !context_) {
-            return false;
-        }
-        if (desc.Width == 0 || desc.Height == 0 || desc.Format == DXGI_FORMAT_UNKNOWN) {
-            return false;
-        }
-        if (desc.SampleDesc.Count != 1) {
-            if (ShouldLog(g_textPreserveFailureLogs, 8)) {
-                Log::diagnostic(
-                    "loading_text_preserve_current_target result=skipped reason=multisampled sample_count={} format={}",
-                    desc.SampleDesc.Count,
-                    static_cast<unsigned>(desc.Format));
-            }
-            return false;
-        }
-
-        const auto needsTexture =
-            !preservedBackBuffer_.texture ||
-            !preservedBackBuffer_.srv ||
-            preservedBackBuffer_.width != desc.Width ||
-            preservedBackBuffer_.height != desc.Height ||
-            preservedBackBuffer_.format != desc.Format;
-        if (needsTexture) {
-            preservedBackBuffer_ = {};
-
-            D3D11_TEXTURE2D_DESC copyDesc{};
-            copyDesc.Width = desc.Width;
-            copyDesc.Height = desc.Height;
-            copyDesc.MipLevels = 1;
-            copyDesc.ArraySize = 1;
-            copyDesc.Format = desc.Format;
-            copyDesc.SampleDesc.Count = 1;
-            copyDesc.Usage = D3D11_USAGE_DEFAULT;
-            copyDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-
-            HRESULT hr = device_->CreateTexture2D(&copyDesc, nullptr, preservedBackBuffer_.texture.GetAddressOf());
-            if (FAILED(hr)) {
-                if (ShouldLog(g_textPreserveFailureLogs, 8)) {
-                    Log::warn(
-                        "Unable to create current-target text preservation texture. format={}, hr=0x{:08X}.",
-                        static_cast<unsigned>(desc.Format),
-                        static_cast<unsigned>(hr));
-                    Log::diagnostic(
-                        "loading_text_preserve_current_target result=failed reason=create_texture format={} hr=0x{:08X}",
-                        static_cast<unsigned>(desc.Format),
-                        static_cast<unsigned>(hr));
-                }
-                return false;
-            }
-
-            hr = device_->CreateShaderResourceView(
-                preservedBackBuffer_.texture.Get(),
-                nullptr,
-                preservedBackBuffer_.srv.GetAddressOf());
-            if (FAILED(hr)) {
-                if (ShouldLog(g_textPreserveFailureLogs, 8)) {
-                    Log::warn(
-                        "Unable to create current-target text preservation SRV. format={}, hr=0x{:08X}.",
-                        static_cast<unsigned>(desc.Format),
-                        static_cast<unsigned>(hr));
-                    Log::diagnostic(
-                        "loading_text_preserve_current_target result=failed reason=create_srv format={} hr=0x{:08X}",
-                        static_cast<unsigned>(desc.Format),
-                        static_cast<unsigned>(hr));
-                }
-                preservedBackBuffer_ = {};
-                return false;
-            }
-
-            preservedBackBuffer_.width = desc.Width;
-            preservedBackBuffer_.height = desc.Height;
-            preservedBackBuffer_.format = desc.Format;
-        }
-
-        context_->CopyResource(preservedBackBuffer_.texture.Get(), resource);
-        if (ShouldLog(g_textPreserveLogs, 12)) {
-            Log::diagnostic(
-                "loading_text_preserve_current_target result=ok size={}x{} format={}",
-                desc.Width,
-                desc.Height,
-                static_cast<unsigned>(desc.Format));
-        }
-        return true;
     }
 
     bool D3D11OverlayRenderer::UpdateTexture(TextureSlot& slot, const VideoFramePtr& framePtr)

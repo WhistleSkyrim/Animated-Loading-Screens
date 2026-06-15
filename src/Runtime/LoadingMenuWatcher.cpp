@@ -20,6 +20,10 @@ namespace
     std::mutex g_suppressedLoadScreenArtMutex;
     std::vector<SuppressedLoadScreenArt> g_suppressedLoadScreenArt;
     std::atomic_bool g_vanillaLoadScreenArtSuppressed{ false };
+    std::mutex g_loadingMenuMovieStateMutex;
+    RE::GPtr<RE::GFxMovieView> g_suppressedLoadingMenuMovie;
+    float g_originalLoadingMenuMovieBackgroundAlpha{ 0.0F };
+    bool g_loadingMenuMovieBackgroundSuppressed{ false };
 
     [[nodiscard]] bool IsLoadingMenu(const RE::BSFixedString& menuName)
     {
@@ -43,7 +47,28 @@ namespace
         return loadingMenu;
     }
 
-    void EnsureLoadingMenuMovieVisible(const RE::GPtr<RE::LoadingMenu>& loadingMenu, std::string_view reason)
+    void RestoreLoadingMenuMovieBackground(std::string_view reason)
+    {
+        std::scoped_lock lock(g_loadingMenuMovieStateMutex);
+        if (!g_loadingMenuMovieBackgroundSuppressed) {
+            return;
+        }
+
+        if (g_suppressedLoadingMenuMovie) {
+            g_suppressedLoadingMenuMovie->SetBackgroundAlpha(g_originalLoadingMenuMovieBackgroundAlpha);
+        }
+        ALS::Log::diagnostic(
+            "loading_menu_movie_background_restore reason={} movie={} alpha={}",
+            reason,
+            static_cast<const void*>(g_suppressedLoadingMenuMovie.get()),
+            g_originalLoadingMenuMovieBackgroundAlpha);
+
+        g_suppressedLoadingMenuMovie = nullptr;
+        g_originalLoadingMenuMovieBackgroundAlpha = 0.0F;
+        g_loadingMenuMovieBackgroundSuppressed = false;
+    }
+
+    void PrepareLoadingMenuMovieForOverlayText(const RE::GPtr<RE::LoadingMenu>& loadingMenu, std::string_view reason)
     {
         if (!loadingMenu) {
             ALS::Log::diagnostic("loading_menu_movie_visibility reason={} visible=true result=no_menu", reason);
@@ -56,8 +81,22 @@ namespace
 
         loadingMenu->uiMovie->SetPause(false);
         loadingMenu->uiMovie->SetVisible(true);
+        {
+            std::scoped_lock lock(g_loadingMenuMovieStateMutex);
+            if (!g_loadingMenuMovieBackgroundSuppressed ||
+                g_suppressedLoadingMenuMovie.get() != loadingMenu->uiMovie.get()) {
+                if (g_loadingMenuMovieBackgroundSuppressed && g_suppressedLoadingMenuMovie) {
+                    g_suppressedLoadingMenuMovie->SetBackgroundAlpha(g_originalLoadingMenuMovieBackgroundAlpha);
+                }
+
+                g_suppressedLoadingMenuMovie = loadingMenu->uiMovie;
+                g_originalLoadingMenuMovieBackgroundAlpha = loadingMenu->uiMovie->GetBackgroundAlpha();
+                g_loadingMenuMovieBackgroundSuppressed = true;
+            }
+            loadingMenu->uiMovie->SetBackgroundAlpha(0.0F);
+        }
         ALS::Log::diagnostic(
-            "loading_menu_movie_visibility reason={} visible=true paused=false result=ok menu={} movie={}",
+            "loading_menu_movie_visibility reason={} visible=true paused=false background_alpha=0 result=ok menu={} movie={}",
             reason,
             static_cast<const void*>(loadingMenu.get()),
             static_cast<const void*>(loadingMenu->uiMovie.get()));
@@ -66,7 +105,7 @@ namespace
     void SuppressVanillaLoadScreenArt(std::string_view reason)
     {
         auto loadingMenu = GetLoadingMenuForMutation(reason);
-        EnsureLoadingMenuMovieVisible(loadingMenu, reason);
+        PrepareLoadingMenuMovieForOverlayText(loadingMenu, reason);
         if (!loadingMenu) {
             return;
         }
@@ -123,6 +162,7 @@ namespace
             g_suppressedLoadScreenArt.size());
         g_suppressedLoadScreenArt.clear();
         g_vanillaLoadScreenArtSuppressed.store(false, std::memory_order_release);
+        RestoreLoadingMenuMovieBackground(reason);
     }
 }
 
@@ -175,6 +215,7 @@ namespace ALS
     {
         controller_.store(nullptr, std::memory_order_release);
         SetBeforeOpenCallback({});
+        RestoreVanillaLoadScreenArt("watcher_uninstall");
         if (!installed_) {
             return;
         }
