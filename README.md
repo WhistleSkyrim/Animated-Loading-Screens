@@ -1,5 +1,10 @@
 # Animated Loading Screens
 
+
+<img width="1659" height="928" alt="{5E8E22CE-A008-4B01-892F-D9D55110608B}" src="https://github.com/user-attachments/assets/dd27ae97-2c3c-4da7-8a4b-8d2a7efc16d6" />
+
+
+
 Animated Loading Screens is an SKSE plugin for Skyrim Special Edition, Anniversary Edition, and GOG AE. It draws video-backed loading screens over Skyrim's vanilla `LoadingMenu`, using media files from a mod-owned folder.
 
 The plugin is built with CommonLibSSE NG, renders through D3D11, and decodes video through dynamically loaded FFmpeg DLLs. If FFmpeg is missing or media cannot be decoded, the plugin fails safely and leaves the vanilla loading screen available.
