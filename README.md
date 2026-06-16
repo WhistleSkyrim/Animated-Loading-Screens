@@ -94,14 +94,31 @@ HideVanillaLoadingSpinner=false
 
 `HideVanillaLoadingSpinner=true` hides Skyrim's bottom-right `LoadWaitSpinner` while the animated overlay is active. It is `false` by default so vanilla behavior is preserved unless you opt in.
 
+Common things to customize:
+
+| Goal | Setting |
+| --- | --- |
+| Disable the plugin without uninstalling it | `General.Enabled=false` |
+| Use a different media folder under the plugin folder | `General.LoadingScreensFolder=MyFolder` |
+| Pick files in order instead of randomly | `General.SelectionMode=sequential` |
+| Keep one video looping for the whole loading screen | `Playback.PlaybackMode=repeat_single` |
+| Move to another file when the current file ends | `Playback.PlaybackMode=next_after_end` |
+| Crossfade between playlist entries | `Playback.PlaybackMode=crossfade_playlist` and `Transitions.EnableCrossfade=true` |
+| Lower decoder/render workload | reduce `Playback.TargetFPS`, `Playback.MaxDecodeWidth`, `Playback.MaxDecodeHeight`, or `Performance.MaxDecoderThreads` |
+| Show the vanilla 3D loading art behind the video | `Display.CoverVanillaLoadingScreen=false` |
+| Hide the vanilla loading spinner | `Display.HideVanillaLoadingSpinner=true` |
+| Make the overlay partially transparent | reduce `Display.Opacity` |
+
 INI settings are grouped by section:
 
-- `[General]`: `Enabled`, `LoadingScreensFolder`, `ScanSubfolders`, `AllowedExtensions`, `SelectionMode`, `RememberLast`, `EnableInVR`, `LogLevel`.
-- `[Playback]`: `PlaybackMode`, `PlaybackSpeed`, `Mute`, `LoopVideo`, `PreloadNext`, `FrameQueueSize`, `MaxDecodeWidth`, `MaxDecodeHeight`, `TargetFPS`, `PauseWhenMenuClosed`.
-- `[Transitions]`: `FadeInMs`, `FadeOutMs`, `EnableCrossfade`, `CrossfadeMs`, `FadeBetweenDifferentFiles`, `FadeToBlackOnMenuClose`.
-- `[Display]`: `FitMode`, `Opacity`, `BackgroundColor`, `CoverVanillaLoadingScreen`, `HideVanillaLoadingSpinner`, `ShowDebugOverlay`.
-- `[Performance]`: `DecoderThreadPriority`, `MaxDecoderThreads`, `MaxFilesToScan`, `SkipFilesLargerThanMB`, `UseHardwareDecoding`.
-- `[Compatibility]`: `DisableWhenENBMenuOpen`, `DisableWhenConsoleOpen`, `FailSafeVanillaFallback`.
+| Section | Settings |
+| --- | --- |
+| `[General]` | Enables/disables the plugin, chooses the media folder, scan behavior, file extensions, selection mode, VR compatibility flag, and log level. |
+| `[Playback]` | Controls playback mode, speed, looping, preloading, frame queue size, decode resolution limits, target FPS, and close behavior. |
+| `[Transitions]` | Controls fade-in, fade-out, crossfade, and close fade behavior. |
+| `[Display]` | Controls fit mode, opacity, background color, vanilla screen coverage, vanilla spinner hiding, and debug overlay reservation. |
+| `[Performance]` | Controls decoder thread priority, FFmpeg thread cap, scan/file-size limits, and reserved hardware decoding flag. |
+| `[Compatibility]` | Reserved compatibility toggles and fail-safe fallback flag. |
 
 The default playlist is:
 

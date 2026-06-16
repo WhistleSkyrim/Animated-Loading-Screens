@@ -21,6 +21,7 @@ namespace ALS
         void SetBeforeOpenCallback(BeforeOpenCallback callback);
         void SetHideVanillaLoadingSpinner(bool hide);
         [[nodiscard]] bool HideVanillaLoadingSpinner() const noexcept;
+        [[nodiscard]] bool ShouldHideVanillaLoadingSpinnerNow() const noexcept;
         bool Install();
         void Uninstall();
 

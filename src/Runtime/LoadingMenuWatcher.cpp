@@ -5,6 +5,7 @@
 #include <RE/L/LoadWaitSpinner.h>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <mutex>
 #include <string_view>
@@ -25,6 +26,7 @@ namespace
         bool rootVisibleKnown{ false };
         bool originalRootVisible{ true };
         bool movieVisibilityTouched{ false };
+        bool originalMovieVisible{ true };
     };
 
     std::mutex g_suppressedLoadScreenArtMutex;
@@ -34,8 +36,48 @@ namespace
     RE::GPtr<RE::GFxMovieView> g_suppressedLoadingMenuMovie;
     float g_originalLoadingMenuMovieBackgroundAlpha{ 0.0F };
     bool g_loadingMenuMovieBackgroundSuppressed{ false };
+    std::mutex g_loadingMenuSpinnerStateMutex;
+    RE::GPtr<RE::GFxMovieView> g_suppressedLoadingMenuSpinnerMovie;
+    bool g_loadingMenuSpinnerIndicatorsSuppressed{ false };
     std::mutex g_loadWaitSpinnerStateMutex;
     SuppressedLoadWaitSpinner g_suppressedLoadWaitSpinner;
+    std::atomic_uint g_loadingMenuSpinnerSuppressionLogs{ 0 };
+
+    constexpr std::array kLoadingMenuSpinnerMoviePaths{
+        "_root.LoadIcon._visible",
+        "_root.LoadWaitSpinner._visible",
+        "_root.LoadingIconHolder._visible",
+        "_root.Menu_mc.LoadIcon._visible",
+        "_root.Menu_mc.LoadWaitSpinner._visible",
+        "_root.Menu_mc.LoadingIconHolder._visible",
+        "_root.LoadingMenuObj.LoadIcon._visible",
+        "_root.LoadingMenuObj.LoadWaitSpinner._visible",
+        "_root.LoadingMenuObj.LoadingIconHolder._visible",
+        "_root.Menu_mc.LoadingMenuObj.LoadIcon._visible",
+        "_root.Menu_mc.LoadingMenuObj.LoadWaitSpinner._visible",
+        "_root.Menu_mc.LoadingMenuObj.LoadingIconHolder._visible",
+        "_root.LoadWaitSpinner.LoadIcon._visible",
+        "_root.LoadWaitSpinner.LoadingIconHolder._visible",
+        "_root.Menu_mc.LoadWaitSpinner.LoadIcon._visible",
+        "_root.Menu_mc.LoadWaitSpinner.LoadingIconHolder._visible"
+    };
+
+    constexpr std::array kLoadingMenuSpinnerRootMembers{
+        "LoadIcon",
+        "LoadWaitSpinner",
+        "LoadingIconHolder"
+    };
+
+    constexpr std::array kLoadingMenuSpinnerContainerMembers{
+        "LoadingMenuObj",
+        "LoadWaitSpinner"
+    };
+
+    [[nodiscard]] bool ShouldLogLoadingMenuSpinnerSuppression()
+    {
+        const auto index = g_loadingMenuSpinnerSuppressionLogs.fetch_add(1, std::memory_order_relaxed);
+        return index < 40 || (index % 120) == 0;
+    }
 
     [[nodiscard]] bool IsLoadingMenu(const RE::BSFixedString& menuName)
     {
@@ -100,18 +142,19 @@ namespace
                 }
             }
             if (g_suppressedLoadWaitSpinner.movieVisibilityTouched && spinner->uiMovie) {
-                spinner->uiMovie->SetVisible(true);
+                spinner->uiMovie->SetVisible(g_suppressedLoadWaitSpinner.originalMovieVisible);
                 restoredMovie = true;
             }
         }
 
         ALS::Log::diagnostic(
-            "load_wait_spinner_restore reason={} menu={} restored_root={} original_root_visible={} restored_movie={}",
+            "load_wait_spinner_restore reason={} menu={} restored_root={} original_root_visible={} restored_movie={} original_movie_visible={}",
             reason,
             static_cast<const void*>(spinner.get()),
             restoredRoot,
             g_suppressedLoadWaitSpinner.originalRootVisible,
-            restoredMovie);
+            restoredMovie,
+            g_suppressedLoadWaitSpinner.originalMovieVisible);
         g_suppressedLoadWaitSpinner = {};
     }
 
@@ -150,7 +193,10 @@ namespace
             rootSuppressed = root.SetDisplayInfo(displayInfo);
         }
 
-        if (!rootSuppressed && spinner->uiMovie) {
+        if (spinner->uiMovie) {
+            if (!g_suppressedLoadWaitSpinner.movieVisibilityTouched) {
+                g_suppressedLoadWaitSpinner.originalMovieVisible = spinner->uiMovie->GetVisible();
+            }
             spinner->uiMovie->SetVisible(false);
             g_suppressedLoadWaitSpinner.movieVisibilityTouched = true;
             movieSuppressed = true;
@@ -185,6 +231,174 @@ namespace
         g_suppressedLoadingMenuMovie = nullptr;
         g_originalLoadingMenuMovieBackgroundAlpha = 0.0F;
         g_loadingMenuMovieBackgroundSuppressed = false;
+    }
+
+    [[nodiscard]] bool SetDisplayObjectVisible(RE::GFxValue& value, bool visible)
+    {
+        if (!value.IsDisplayObject()) {
+            return false;
+        }
+
+        RE::GFxValue::DisplayInfo displayInfo;
+        if (!value.GetDisplayInfo(&displayInfo)) {
+            return false;
+        }
+
+        displayInfo.SetVisible(visible);
+        return value.SetDisplayInfo(displayInfo);
+    }
+
+    [[nodiscard]] std::size_t SetNamedMemberVisible(RE::GFxValue& parent, const char* memberName, bool visible)
+    {
+        RE::GFxValue member;
+        if (!parent.GetMember(memberName, &member)) {
+            return 0;
+        }
+
+        std::size_t changed = 0;
+        if (SetDisplayObjectVisible(member, visible)) {
+            ++changed;
+        }
+
+        if (!member.IsObject() && !member.IsDisplayObject()) {
+            return changed;
+        }
+
+        for (const auto* nestedName : kLoadingMenuSpinnerRootMembers) {
+            RE::GFxValue nested;
+            if (member.GetMember(nestedName, &nested) && SetDisplayObjectVisible(nested, visible)) {
+                ++changed;
+            }
+        }
+        return changed;
+    }
+
+    [[nodiscard]] std::size_t SetLoadingMenuSpinnerRootMembersVisible(
+        const RE::GPtr<RE::LoadingMenu>& loadingMenu,
+        bool visible)
+    {
+        if (!loadingMenu) {
+            return 0;
+        }
+
+        auto& root = loadingMenu->GetRuntimeData().root;
+        std::size_t changed = 0;
+        for (const auto* memberName : kLoadingMenuSpinnerRootMembers) {
+            changed += SetNamedMemberVisible(root, memberName, visible);
+        }
+        for (const auto* containerName : kLoadingMenuSpinnerContainerMembers) {
+            changed += SetNamedMemberVisible(root, containerName, visible);
+        }
+        return changed;
+    }
+
+    struct MoviePathVisibilityResult
+    {
+        std::size_t available{ 0 };
+        std::size_t set{ 0 };
+    };
+
+    [[nodiscard]] MoviePathVisibilityResult SetLoadingMenuSpinnerMoviePathsVisible(
+        const RE::GPtr<RE::GFxMovieView>& movie,
+        bool visible)
+    {
+        MoviePathVisibilityResult result;
+        if (!movie) {
+            return result;
+        }
+
+        const RE::GFxValue value(visible);
+        for (const auto* path : kLoadingMenuSpinnerMoviePaths) {
+            if (movie->IsAvailable(path)) {
+                ++result.available;
+            }
+            if (movie->SetVariable(path, value, RE::GFxMovie::SetVarType::kPermanent)) {
+                ++result.set;
+            }
+        }
+        return result;
+    }
+
+    void SetLoadingMenuSpinnerIndicatorsVisible(
+        const RE::GPtr<RE::LoadingMenu>& loadingMenu,
+        bool visible,
+        std::string_view reason)
+    {
+        if (!loadingMenu) {
+            ALS::Log::diagnostic(
+                "loading_menu_spinner_visibility reason={} visible={} result=no_menu",
+                reason,
+                visible);
+            return;
+        }
+
+        const auto memberChanged = SetLoadingMenuSpinnerRootMembersVisible(loadingMenu, visible);
+        auto movieResult = MoviePathVisibilityResult{};
+        if (loadingMenu->uiMovie) {
+            movieResult = SetLoadingMenuSpinnerMoviePathsVisible(loadingMenu->uiMovie, visible);
+        }
+
+        {
+            std::scoped_lock lock(g_loadingMenuSpinnerStateMutex);
+            if (!visible && loadingMenu->uiMovie) {
+                g_suppressedLoadingMenuSpinnerMovie = loadingMenu->uiMovie;
+                g_loadingMenuSpinnerIndicatorsSuppressed = true;
+            }
+        }
+
+        if (ShouldLogLoadingMenuSpinnerSuppression()) {
+            ALS::Log::diagnostic(
+                "loading_menu_spinner_visibility reason={} visible={} menu={} movie={} member_changed={} movie_paths_available={} movie_paths_set={}",
+                reason,
+                visible,
+                static_cast<const void*>(loadingMenu.get()),
+                loadingMenu->uiMovie ? static_cast<const void*>(loadingMenu->uiMovie.get()) : nullptr,
+                memberChanged,
+                movieResult.available,
+                movieResult.set);
+        }
+    }
+
+    void SuppressLoadingMenuSpinnerIndicators(std::string_view reason)
+    {
+        SetLoadingMenuSpinnerIndicatorsVisible(GetLoadingMenuForMutation(reason), false, reason);
+    }
+
+    void RestoreLoadingMenuSpinnerIndicators(std::string_view reason)
+    {
+        RE::GPtr<RE::GFxMovieView> movie;
+        {
+            std::scoped_lock lock(g_loadingMenuSpinnerStateMutex);
+            if (!g_loadingMenuSpinnerIndicatorsSuppressed) {
+                return;
+            }
+            movie = g_suppressedLoadingMenuSpinnerMovie;
+            g_suppressedLoadingMenuSpinnerMovie = nullptr;
+            g_loadingMenuSpinnerIndicatorsSuppressed = false;
+        }
+
+        if (auto loadingMenu = GetLoadingMenuForMutation(reason)) {
+            SetLoadingMenuSpinnerIndicatorsVisible(loadingMenu, true, reason);
+            return;
+        }
+
+        if (movie) {
+            const auto movieResult = SetLoadingMenuSpinnerMoviePathsVisible(movie, true);
+            ALS::Log::diagnostic(
+                "loading_menu_spinner_restore reason={} movie={} movie_paths_available={} movie_paths_set={}",
+                reason,
+                static_cast<const void*>(movie.get()),
+                movieResult.available,
+                movieResult.set);
+        } else {
+            ALS::Log::diagnostic("loading_menu_spinner_restore reason={} movie=<null>", reason);
+        }
+    }
+
+    void SuppressVanillaLoadingSpinner(std::string_view reason)
+    {
+        SuppressLoadWaitSpinner(reason);
+        SuppressLoadingMenuSpinnerIndicators(reason);
     }
 
     void PrepareLoadingMenuMovieForOverlayText(const RE::GPtr<RE::LoadingMenu>& loadingMenu, std::string_view reason)
@@ -281,6 +495,7 @@ namespace
             g_suppressedLoadScreenArt.size());
         g_suppressedLoadScreenArt.clear();
         g_vanillaLoadScreenArtSuppressed.store(false, std::memory_order_release);
+        RestoreLoadingMenuSpinnerIndicators(reason);
         RestoreLoadingMenuMovieBackground(reason);
     }
 }
@@ -311,18 +526,45 @@ namespace ALS
         Log::diagnostic("loading_menu_watcher_set_hide_spinner hide={}", hide);
         if (!hide) {
             RestoreLoadWaitSpinner("hide_spinner_disabled");
+            RestoreLoadingMenuSpinnerIndicators("hide_spinner_disabled");
             return;
         }
 
         auto* controller = controller_.load(std::memory_order_acquire);
         if (loadingMenuOpen_.load(std::memory_order_acquire) && controller && controller->IsOverlayActive()) {
-            SuppressLoadWaitSpinner("hide_spinner_enabled_runtime");
+            SuppressVanillaLoadingSpinner("hide_spinner_enabled_runtime");
         }
     }
 
     bool LoadingMenuWatcher::HideVanillaLoadingSpinner() const noexcept
     {
         return hideVanillaLoadingSpinner_.load(std::memory_order_acquire);
+    }
+
+    bool LoadingMenuWatcher::ShouldHideVanillaLoadingSpinnerNow() const noexcept
+    {
+        if (!hideVanillaLoadingSpinner_.load(std::memory_order_acquire) ||
+            !loadingMenuOpen_.load(std::memory_order_acquire)) {
+            return false;
+        }
+
+        const auto* controller = controller_.load(std::memory_order_acquire);
+        return controller && controller->IsOverlayActive();
+    }
+
+    void SuppressVanillaLoadingSpinnerForActiveOverlay() noexcept
+    {
+        try {
+            if (LoadingMenuWatcher::GetSingleton().ShouldHideVanillaLoadingSpinnerNow()) {
+                SuppressVanillaLoadingSpinner("active_overlay_frame");
+            }
+        } catch (const std::exception& e) {
+            Log::error("Exception while suppressing vanilla loading spinner for active overlay: {}", e.what());
+            Log::diagnostic("active_overlay_spinner_suppression_exception what={}", e.what());
+        } catch (...) {
+            Log::error("Unknown exception while suppressing vanilla loading spinner for active overlay.");
+            Log::diagnostic("active_overlay_spinner_suppression_exception what=<unknown>");
+        }
     }
 
     LoadingMenuWatcher::BeforeOpenCallback LoadingMenuWatcher::CopyBeforeOpenCallback()
@@ -397,7 +639,7 @@ namespace ALS
                     loadingMenuOpen_.load(std::memory_order_acquire) &&
                     controller &&
                     controller->IsOverlayActive()) {
-                    SuppressLoadWaitSpinner("load_wait_spinner_opened");
+                    SuppressVanillaLoadingSpinner("load_wait_spinner_opened");
                 }
             } else {
                 RestoreLoadWaitSpinner("load_wait_spinner_closing");
@@ -430,7 +672,7 @@ namespace ALS
                 }
                 SuppressVanillaLoadScreenArt("before_controller_open");
                 if (HideVanillaLoadingSpinner()) {
-                    SuppressLoadWaitSpinner("before_controller_open");
+                    SuppressVanillaLoadingSpinner("before_controller_open");
                 }
                 Log::diagnostic("loading_menu_open_controller_begin");
                 controller->OnLoadingMenuOpen();
@@ -441,7 +683,7 @@ namespace ALS
                 if (controller->IsOverlayActive()) {
                     SuppressVanillaLoadScreenArt("controller_opened");
                     if (HideVanillaLoadingSpinner()) {
-                        SuppressLoadWaitSpinner("controller_opened");
+                        SuppressVanillaLoadingSpinner("controller_opened");
                     }
                 } else {
                     RestoreLoadWaitSpinner("controller_open_failed");

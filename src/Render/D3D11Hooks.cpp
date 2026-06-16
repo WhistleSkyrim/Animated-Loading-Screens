@@ -40,6 +40,11 @@ namespace RE
     class LoadingMenu;
 }
 
+namespace ALS
+{
+    void SuppressVanillaLoadingSpinnerForActiveOverlay() noexcept;
+}
+
 namespace
 {
     using Microsoft::WRL::ComPtr;
@@ -282,6 +287,7 @@ namespace
             g_postDisplayOverlaySubmitted.store(false, std::memory_order_release);
         }
 
+        ALS::SuppressVanillaLoadingSpinnerForActiveOverlay();
         if (g_originalLoadingMenuPostDisplay) {
             g_originalLoadingMenuPostDisplay(menu);
         }
@@ -605,6 +611,7 @@ namespace
         g_loadingMenuPostDisplayEntry = 0;
         g_originalLoadingMenuPostDisplay = nullptr;
     }
+
 }
 
 namespace ALS::D3D11Hooks

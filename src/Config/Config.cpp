@@ -470,60 +470,88 @@ namespace ALS
     std::string DefaultConfigText()
     {
         return R"(; Animated Loading Screens default configuration.
-; LoadingScreensFolder is confined to Data\SKSE\Plugins\AnimatedLoadingScreens.
+; The config lives at Data\SKSE\Plugins\AnimatedLoadingScreens.ini.
+; Paths are resolved under Data\SKSE\Plugins\AnimatedLoadingScreens unless noted.
 
 [General]
+; Master switch. Set false to disable the plugin without uninstalling it.
 Enabled=true
+; Media folder relative to Data\SKSE\Plugins\AnimatedLoadingScreens.
+; Absolute paths and .. escapes are rejected for safety.
 LoadingScreensFolder=LoadingScreens
+; Include nested folders when scanning LoadingScreensFolder.
 ScanSubfolders=true
+; Comma-separated media extensions to accept.
 AllowedExtensions=.mp4,.mkv,.webm,.mov,.avi,.gif,.apng
+; random, sequential, weighted_random
 SelectionMode=random
+; When SelectionMode=sequential, remember the last picked file between sessions.
 RememberLast=false
-; Retained for compatibility only. Skyrim VR is unsupported and hooks are never installed there.
+; Compatibility placeholder. Skyrim VR is unsupported and hooks are never installed there.
 EnableInVR=false
+; trace, debug, info, warn, error, critical
 LogLevel=info
 
 [Playback]
-PlaybackMode=repeat_single
-; repeat_single = loop the same media until LoadingMenu closes
+; repeat_single = keep the same media active until LoadingMenu closes
 ; next_after_end = when media ends, switch to another media
-; crossfade_playlist = crossfade to another media when current media ends
+; crossfade_playlist = crossfade to another playlist/media entry when current media ends
+PlaybackMode=repeat_single
+; Playback speed multiplier. 1.0 is normal speed.
 PlaybackSpeed=1.0
 ; Reserved: video playback is silent in this build.
 Mute=true
-; LoopVideo only affects repeat_single. If false, playback stops after one pass.
+; Only affects repeat_single. If false, playback stops after one pass.
 LoopVideo=true
+; Prepare the next decoder before it is needed.
 PreloadNext=true
+; Maximum decoded frames queued in memory.
 FrameQueueSize=4
+; Large sources are downscaled to these limits while preserving aspect ratio.
 MaxDecodeWidth=1920
 MaxDecodeHeight=1080
+; Output frame cap and fallback FPS when timestamps are missing.
 TargetFPS=60
+; Reserved: playback currently fades/stops when LoadingMenu closes.
 PauseWhenMenuClosed=true
 
 [Transitions]
+; Fade durations in milliseconds.
 FadeInMs=350
 FadeOutMs=250
+; Used when PlaybackMode=crossfade_playlist.
 EnableCrossfade=true
 CrossfadeMs=700
 ; Reserved for future transition tuning.
 FadeBetweenDifferentFiles=true
+; Draw the configured background during close fade.
 FadeToBlackOnMenuClose=true
 
 [Display]
+; cover = fill screen and crop if needed
+; contain = fit whole media and letterbox/pillarbox
+; stretch = fill screen without preserving aspect ratio
 FitMode=cover
-; cover, contain, stretch
+; Global overlay opacity from 0.0 to 1.0.
 Opacity=1.0
+; Hex RGB background color used behind the video.
 BackgroundColor=#000000
+; Fill over Skyrim's vanilla loading art before drawing video.
+; Set false if you want vanilla art to remain visible behind transparent video.
 CoverVanillaLoadingScreen=true
-; Hides Skyrim's bottom-right LoadWaitSpinner while the animated overlay is active.
+; Hide Skyrim's vanilla bottom-right loading spinner while the animated overlay is active.
 HideVanillaLoadingSpinner=false
 ; Reserved for future on-screen diagnostics.
 ShowDebugOverlay=false
 
 [Performance]
+; low, below_normal, normal
 DecoderThreadPriority=below_normal
+; FFmpeg worker thread cap. 1 is safest for game frame pacing.
 MaxDecoderThreads=1
+; Stop accepting media after this many files. Set higher for large libraries.
 MaxFilesToScan=500
+; Skip oversized media files. Set 0 to disable this size filter.
 SkipFilesLargerThanMB=2048
 ; Reserved: software FFmpeg decoding is used.
 UseHardwareDecoding=false
@@ -532,7 +560,7 @@ UseHardwareDecoding=false
 ; Reserved: these detection paths are not enforced yet.
 DisableWhenENBMenuOpen=true
 DisableWhenConsoleOpen=false
-; Reserved: the implementation always uses fail-safe vanilla fallback.
+; Reserved: decoder/init failures already fall back to vanilla loading screens.
 FailSafeVanillaFallback=true
 )";
     }
