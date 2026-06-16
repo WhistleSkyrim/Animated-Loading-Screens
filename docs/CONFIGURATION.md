@@ -46,6 +46,7 @@ If the file is missing, a commented default INI is created.
 - `Opacity`: global opacity from `0.0` to `1.0`.
 - `BackgroundColor`: hex RGB color.
 - `CoverVanillaLoadingScreen`: fills the screen before drawing video.
+- `HideVanillaLoadingSpinner`: hides Skyrim's bottom-right `LoadWaitSpinner` while the animated overlay is active. Default is `false`.
 - `ShowDebugOverlay`: reserved for future on-screen diagnostics.
 
 ## Performance
@@ -80,3 +81,14 @@ logo_loop.mp4 | 20 | 8.0
 ```
 
 Playlist paths are relative to `LoadingScreensFolder`. Absolute paths and parent-directory escapes are rejected for safety.
+
+## Runtime Integration
+
+External plugins can toggle the vanilla loading spinner for the current session without editing the INI:
+
+```cpp
+AnimatedLoadingScreens_SetVanillaLoadingSpinnerHidden(true);
+AnimatedLoadingScreens_SetVanillaLoadingSpinnerHidden(false);
+```
+
+`AnimatedLoadingScreens_GetVanillaLoadingSpinnerHidden()` returns the current runtime value. The INI value is still used as the default on plugin load.

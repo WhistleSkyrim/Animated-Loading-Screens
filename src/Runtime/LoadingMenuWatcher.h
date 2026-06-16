@@ -19,6 +19,8 @@ namespace ALS
 
         void SetController(AnimatedLoadingScreenController* controller);
         void SetBeforeOpenCallback(BeforeOpenCallback callback);
+        void SetHideVanillaLoadingSpinner(bool hide);
+        [[nodiscard]] bool HideVanillaLoadingSpinner() const noexcept;
         bool Install();
         void Uninstall();
 
@@ -30,6 +32,8 @@ namespace ALS
         BeforeOpenCallback CopyBeforeOpenCallback();
 
         std::atomic<AnimatedLoadingScreenController*> controller_{ nullptr };
+        std::atomic_bool hideVanillaLoadingSpinner_{ false };
+        std::atomic_bool loadingMenuOpen_{ false };
         std::mutex callbackMutex_{};
         BeforeOpenCallback beforeOpenCallback_{};
         bool installed_{ false };

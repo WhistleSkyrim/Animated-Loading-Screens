@@ -387,6 +387,7 @@ namespace
         }
         ALS::Log::info("Loaded config: {}", ALS::Paths::ForLog(ALS::Paths::DefaultConfigPath()));
         LogWarnings(configResult.warnings);
+        ALS::LoadingMenuWatcher::GetSingleton().SetHideVanillaLoadingSpinner(g_config.display.hideVanillaLoadingSpinner);
 
         ALS::Paths::EnsureBaseLayout(g_config.general.loadingScreensFolder);
         const auto mediaFolder = ALS::Paths::ResolvePluginOwnedPath(
@@ -398,12 +399,13 @@ namespace
         }
         ALS::Log::info("Configured media folder: {}", ALS::Paths::ForLog(mediaFolder.path));
         ALS::Log::diagnostic(
-            "config enabled={} log_level={} media_folder={} media_folder_safe={} cover_vanilla={} fit_mode={} opacity={} fade_in_ms={} playback_mode={}",
+            "config enabled={} log_level={} media_folder={} media_folder_safe={} cover_vanilla={} hide_spinner={} fit_mode={} opacity={} fade_in_ms={} playback_mode={}",
             g_config.general.enabled,
             g_config.general.logLevel,
             ALS::Paths::ForLog(mediaFolder.path),
             mediaFolder.safe,
             g_config.display.coverVanillaLoadingScreen,
+            g_config.display.hideVanillaLoadingSpinner,
             ALS::ToString(g_config.display.fitMode),
             g_config.display.opacity,
             g_config.transitions.fadeInMs,
@@ -475,4 +477,14 @@ extern "C" __declspec(dllexport) bool SKSEAPI SKSEPlugin_Load(const SKSE::LoadIn
         ALS::Log::error("Unknown fatal exception during plugin load.");
     }
     return false;
+}
+
+extern "C" __declspec(dllexport) void AnimatedLoadingScreens_SetVanillaLoadingSpinnerHidden(bool hidden)
+{
+    ALS::LoadingMenuWatcher::GetSingleton().SetHideVanillaLoadingSpinner(hidden);
+}
+
+extern "C" __declspec(dllexport) bool AnimatedLoadingScreens_GetVanillaLoadingSpinnerHidden()
+{
+    return ALS::LoadingMenuWatcher::GetSingleton().HideVanillaLoadingSpinner();
 }

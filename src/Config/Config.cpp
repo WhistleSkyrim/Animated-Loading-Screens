@@ -415,6 +415,9 @@ namespace
         if (auto value = Get(data, "Display", "CoverVanillaLoadingScreen")) {
             config.display.coverVanillaLoadingScreen = ParseBool(*value, config.display.coverVanillaLoadingScreen, warnings, "Display.CoverVanillaLoadingScreen");
         }
+        if (auto value = Get(data, "Display", "HideVanillaLoadingSpinner")) {
+            config.display.hideVanillaLoadingSpinner = ParseBool(*value, config.display.hideVanillaLoadingSpinner, warnings, "Display.HideVanillaLoadingSpinner");
+        }
         if (auto value = Get(data, "Display", "ShowDebugOverlay")) {
             config.display.showDebugOverlay = ParseBool(*value, config.display.showDebugOverlay, warnings, "Display.ShowDebugOverlay");
         }
@@ -512,6 +515,8 @@ FitMode=cover
 Opacity=1.0
 BackgroundColor=#000000
 CoverVanillaLoadingScreen=true
+; Hides Skyrim's bottom-right LoadWaitSpinner while the animated overlay is active.
+HideVanillaLoadingSpinner=false
 ; Reserved for future on-screen diagnostics.
 ShowDebugOverlay=false
 

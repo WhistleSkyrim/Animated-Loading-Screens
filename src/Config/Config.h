@@ -87,6 +87,7 @@ namespace ALS
         float opacity{ 1.0F };
         Color backgroundColor{};
         bool coverVanillaLoadingScreen{ true };
+        bool hideVanillaLoadingSpinner{ false };
         bool showDebugOverlay{ false };
     };
 

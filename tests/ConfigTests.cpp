@@ -12,6 +12,7 @@ ALS_TEST(ConfigCreatesDefaultAndParsesValues)
     ALS::Tests::Expect(created.createdDefault, "default config should be created");
     ALS::Tests::Expect(created.config.general.enabled, "default config should enable plugin");
     ALS::Tests::Expect(!created.config.general.enableInVR, "VR should be opt-in by default");
+    ALS::Tests::Expect(!created.config.display.hideVanillaLoadingSpinner, "vanilla loading spinner should remain visible by default");
     ALS::Tests::ExpectEq(ALS::ToString(created.config.playback.playbackMode), std::string("repeat_single"), "default playback mode");
     ALS::Tests::ExpectEq(created.config.playback.targetFPS, 60.0, "default target fps should preserve 60 FPS videos");
 
@@ -23,6 +24,7 @@ ALS_TEST(ConfigCreatesDefaultAndParsesValues)
     output << "[Display]\n";
     output << "FitMode=contain\n";
     output << "Opacity=0.5\n";
+    output << "HideVanillaLoadingSpinner=true\n";
     output.close();
 
     const auto parsed = ALS::LoadOrCreateConfig(path);
@@ -30,6 +32,7 @@ ALS_TEST(ConfigCreatesDefaultAndParsesValues)
     ALS::Tests::ExpectEq(ALS::ToString(parsed.config.general.selectionMode), std::string("sequential"), "selection mode should parse");
     ALS::Tests::ExpectEq(parsed.config.general.allowedExtensions.size(), static_cast<std::size_t>(2), "extensions should parse");
     ALS::Tests::ExpectEq(ALS::ToString(parsed.config.display.fitMode), std::string("contain"), "fit mode should parse");
+    ALS::Tests::Expect(parsed.config.display.hideVanillaLoadingSpinner, "spinner hiding should parse");
 }
 
 ALS_TEST(ConfigRejectsMalformedNumbersAndClampsBounds)

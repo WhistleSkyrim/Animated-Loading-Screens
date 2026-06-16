@@ -81,10 +81,41 @@ The main config file is:
 Data\SKSE\Plugins\AnimatedLoadingScreens.ini
 ```
 
+If the file is missing, the plugin creates it with safe defaults. A small display-focused example:
+
+```ini
+[Display]
+FitMode=cover
+Opacity=1.0
+BackgroundColor=#000000
+CoverVanillaLoadingScreen=true
+HideVanillaLoadingSpinner=false
+```
+
+`HideVanillaLoadingSpinner=true` hides Skyrim's bottom-right `LoadWaitSpinner` while the animated overlay is active. It is `false` by default so vanilla behavior is preserved unless you opt in.
+
+INI settings are grouped by section:
+
+- `[General]`: `Enabled`, `LoadingScreensFolder`, `ScanSubfolders`, `AllowedExtensions`, `SelectionMode`, `RememberLast`, `EnableInVR`, `LogLevel`.
+- `[Playback]`: `PlaybackMode`, `PlaybackSpeed`, `Mute`, `LoopVideo`, `PreloadNext`, `FrameQueueSize`, `MaxDecodeWidth`, `MaxDecodeHeight`, `TargetFPS`, `PauseWhenMenuClosed`.
+- `[Transitions]`: `FadeInMs`, `FadeOutMs`, `EnableCrossfade`, `CrossfadeMs`, `FadeBetweenDifferentFiles`, `FadeToBlackOnMenuClose`.
+- `[Display]`: `FitMode`, `Opacity`, `BackgroundColor`, `CoverVanillaLoadingScreen`, `HideVanillaLoadingSpinner`, `ShowDebugOverlay`.
+- `[Performance]`: `DecoderThreadPriority`, `MaxDecoderThreads`, `MaxFilesToScan`, `SkipFilesLargerThanMB`, `UseHardwareDecoding`.
+- `[Compatibility]`: `DisableWhenENBMenuOpen`, `DisableWhenConsoleOpen`, `FailSafeVanillaFallback`.
+
 The default playlist is:
 
 ```text
 Data\SKSE\Plugins\AnimatedLoadingScreens\Playlists\default.txt
 ```
+
+External plugins can toggle the vanilla loading spinner at runtime through the exported DLL functions:
+
+```cpp
+AnimatedLoadingScreens_SetVanillaLoadingSpinnerHidden(true);
+AnimatedLoadingScreens_SetVanillaLoadingSpinnerHidden(false);
+```
+
+This runtime toggle affects the current session only; the INI value is still the startup default.
 
 See [docs/BUILDING.md](docs/BUILDING.md) and [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for more details.
