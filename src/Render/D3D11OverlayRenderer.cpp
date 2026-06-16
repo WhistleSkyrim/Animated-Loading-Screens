@@ -40,6 +40,7 @@ namespace
     constexpr std::size_t kMaxQuadCount = 4;
     constexpr std::size_t kVerticesPerQuad = 4;
     constexpr std::size_t kMaxVertexCount = kMaxQuadCount * kVerticesPerQuad;
+    constexpr bool kEnableBackBufferReadbackDiagnostics = false;
 
     std::atomic_bool g_loggedPipelineInit{ false };
     std::atomic_bool g_loggedBackBuffer{ false };
@@ -650,7 +651,7 @@ namespace ALS
             }
             return false;
         }
-        if (ShouldLog(g_backBufferSampleLogs, 8)) {
+        if (kEnableBackBufferReadbackDiagnostics && ShouldLog(g_backBufferSampleLogs, 8)) {
             ALS::Log::diagnostic(
                 "overlay_render_drawn quads={} overlay_quads={} requested_commands={} viewport={}x{} draw_background={} current_frame={} current_alpha={} next_frame={} next_alpha={} opacity={}",
                 drawnQuads,

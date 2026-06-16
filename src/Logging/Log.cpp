@@ -134,7 +134,7 @@ namespace ALS::Log
         g_diagnosticLogger = spdlog::basic_logger_mt("AnimatedLoadingScreens.Diagnostics", logPath.string(), true);
         g_diagnosticLogger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] %v");
         g_diagnosticLogger->set_level(spdlog::level::trace);
-        g_diagnosticLogger->flush_on(spdlog::level::info);
+        g_diagnosticLogger->flush_on(spdlog::level::warn);
 #else
         g_diagnosticFile.open(logPath, std::ios::trunc);
 #endif
@@ -218,7 +218,6 @@ namespace ALS::Log
         }
         if (g_diagnosticFile) {
             g_diagnosticFile << message << '\n';
-            g_diagnosticFile.flush();
         }
     }
 #endif

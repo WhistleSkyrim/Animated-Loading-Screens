@@ -606,7 +606,6 @@ namespace ALS
         current_.reset();
         current_ = std::move(next_);
         current_->startSeconds = now;
-        current_->nextFrameQuerySeconds = 0.0;
         selector_.CommitSelection(current_->media);
         state_ = loadingMenuOpen_ ? PlaybackState::Playing : PlaybackState::FadingOut;
         transitionStartSeconds_ = now;
@@ -652,15 +651,11 @@ namespace ALS
         if (!slot.decoder) {
             return {};
         }
-        if (slot.lastFrame && now < slot.nextFrameQuerySeconds) {
-            return slot.lastFrame;
-        }
 
         const auto elapsed = SlotElapsedSecondsLocked(slot, now);
         auto frame = slot.decoder->GetFrameForTime(elapsed);
         if (frame) {
             slot.lastFrame = frame;
-            slot.nextFrameQuerySeconds = now + FrameQueryIntervalSecondsLocked();
         }
         return frame;
     }
@@ -709,12 +704,5 @@ namespace ALS
             {},
             {}
         };
-    }
-
-    double AnimatedLoadingScreenController::FrameQueryIntervalSecondsLocked() const
-    {
-        const auto targetFPS = std::clamp(config_.playback.targetFPS, 1.0, 240.0);
-        const auto playbackSpeed = std::clamp(config_.playback.playbackSpeed, 0.1, 4.0);
-        return 1.0 / (targetFPS * playbackSpeed);
     }
 }

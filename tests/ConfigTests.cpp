@@ -13,6 +13,7 @@ ALS_TEST(ConfigCreatesDefaultAndParsesValues)
     ALS::Tests::Expect(created.config.general.enabled, "default config should enable plugin");
     ALS::Tests::Expect(!created.config.general.enableInVR, "VR should be opt-in by default");
     ALS::Tests::ExpectEq(ALS::ToString(created.config.playback.playbackMode), std::string("repeat_single"), "default playback mode");
+    ALS::Tests::ExpectEq(created.config.playback.targetFPS, 60.0, "default target fps should preserve 60 FPS videos");
 
     std::ofstream output(path, std::ios::trunc);
     output << "[General]\n";

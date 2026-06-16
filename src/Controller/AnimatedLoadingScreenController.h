@@ -67,7 +67,6 @@ namespace ALS
             std::unique_ptr<IVideoDecoder> decoder{};
             double startSeconds{ 0.0 };
             VideoFramePtr lastFrame{};
-            double nextFrameQuerySeconds{ 0.0 };
             bool waitingForFirstFrameLogged{ false };
             bool firstFrameLogged{ false };
         };
@@ -103,6 +102,5 @@ namespace ALS
         [[nodiscard]] double SlotDurationSecondsLocked(const PlayerSlot& slot) const;
         [[nodiscard]] double EffectiveCrossfadeMsLocked(const PlayerSlot& slot) const;
         [[nodiscard]] OverlayRenderData BaseRenderDataLocked() const;
-        [[nodiscard]] double FrameQueryIntervalSecondsLocked() const;
     };
 }

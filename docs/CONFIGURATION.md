@@ -28,7 +28,7 @@ If the file is missing, a commented default INI is created.
 - `PreloadNext`: opens the next decoder before it is needed.
 - `FrameQueueSize`: maximum decoded video frames queued in memory.
 - `MaxDecodeWidth` and `MaxDecodeHeight`: downscale large sources while preserving aspect ratio.
-- `TargetFPS`: output frame-rate cap and fallback frame rate when media timestamps are missing. Lower values reduce decode and texture-upload work.
+- `TargetFPS`: output frame-rate cap and fallback frame rate when media timestamps are missing. The default is `60` for smooth 60 FPS videos; lower values reduce decode and texture-upload work.
 - `PauseWhenMenuClosed`: reserved. Playback currently fades/stops when `LoadingMenu` closes.
 
 ## Transitions

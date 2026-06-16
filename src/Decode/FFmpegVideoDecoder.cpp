@@ -736,6 +736,12 @@ namespace ALS
         if (fps <= 0.0) {
             fps = options_.targetFPS;
         }
+        if (fps > options_.targetFPS + 0.5) {
+            Log::info(
+                "Video frame rate {:.3f} fps is above configured TargetFPS {:.3f}; playback will be capped. Raise TargetFPS for smoother high-FPS videos.",
+                fps,
+                options_.targetFPS);
+        }
 
         auto duration = 0.0;
         if (format->duration > 0) {

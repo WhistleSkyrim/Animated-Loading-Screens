@@ -494,7 +494,7 @@ PreloadNext=true
 FrameQueueSize=4
 MaxDecodeWidth=1920
 MaxDecodeHeight=1080
-TargetFPS=30
+TargetFPS=60
 PauseWhenMenuClosed=true
 
 [Transitions]

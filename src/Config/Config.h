@@ -67,7 +67,7 @@ namespace ALS
         std::size_t frameQueueSize{ 4 };
         int maxDecodeWidth{ 1920 };
         int maxDecodeHeight{ 1080 };
-        double targetFPS{ 30.0 };
+        double targetFPS{ 60.0 };
         bool pauseWhenMenuClosed{ true };
     };
 
